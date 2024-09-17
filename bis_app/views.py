@@ -1,24 +1,34 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from .models import BlockedDomain
 from .serializers import BlockedDomainSerializer
 from django.contrib.auth.models import User
 import docker
 import json
+import os
+import tempfile
+from django.http import JsonResponse
+import logging
+from rest_framework.permissions import AllowAny
 
-client = docker.from_env()
+logger = logging.getLogger(__name__)
 
-class IsAdminOrOwnerReadOnly(BasePermission):
+DOCKER_API_VERSION = '1.43'
+client = docker.DockerClient(version=DOCKER_API_VERSION)
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """
+    Allow only admin users to modify data (POST/DELETE), while others can only view (GET).
+    """
     def has_permission(self, request, view):
-        if request.method == 'GET':
-            return request.user.is_authenticated and request.user.id == view.kwargs['user_id']
+        if request.method in ['GET']:
+            return request.user.is_authenticated
         return request.user.is_staff
 
-
 class UserBlockedDomainView(APIView):
-    #permission_classes = [IsAdminOrOwnerReadOnly]
+    permission_classes = [IsAdminOrReadOnly]
 
     def get(self, request, user_id):
         try:
@@ -30,8 +40,6 @@ class UserBlockedDomainView(APIView):
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def post(self, request, user_id):
-        if not request.user.is_staff:
-            return Response({"error": "You don't have permission to add blocked domains."}, status=status.HTTP_403_FORBIDDEN)
         try:
             user = User.objects.get(id=user_id)
             serializer = BlockedDomainSerializer(data=request.data)
@@ -43,8 +51,6 @@ class UserBlockedDomainView(APIView):
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
     def delete(self, request, user_id, domain_id):
-        if not request.user.is_staff:
-            return Response({"error": "You don't have permission to delete blocked domains."}, status=status.HTTP_403_FORBIDDEN)
         try:
             domain = BlockedDomain.objects.get(id=domain_id, user_id=user_id)
             domain.delete()
@@ -54,22 +60,36 @@ class UserBlockedDomainView(APIView):
 
 
 class StartContainerView(APIView):
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request, user_id):
         try:
-            blocked_domains = BlockedDomain.objects.filter(user_id=user_id).values_list('domain', flat=True)
-            rules = json.dumps(list(blocked_domains))
+            # Get the user and their blocked domains
+            user = User.objects.get(id=user_id)
+            blocked_domains = BlockedDomain.objects.filter(user=user).values_list('domain', flat=True)
 
+            # Clean up the domains by removing 'http(s)://' and trailing slashes
+            domain_rules = json.dumps(
+                [domain.replace('https://', '').replace('http://', '').strip('/') for domain in blocked_domains])
+
+            logger.info(f"Blocked Domains for User {user_id}: {domain_rules}")  # Log the blocked domains
+
+            # Start Docker container running Chrome with the Puppeteer script
             container = client.containers.run(
-                "browserless/chrome",
+                "custom-puppeteer",  # Use the custom Docker image
                 detach=True,
-                environment={"BLOCKED_DOMAINS": rules},
-                ports={'3000/tcp': 3000},
+                ports={'3000/tcp': 3000},  # Map port 3000 of the Docker container to host
+                environment={"BLOCKED_DOMAINS": domain_rules},  # Pass blocked domains as an environment variable
+                command=["node", "/app/script.js"],  # Run Puppeteer script inside container
+
             )
 
             return Response({"container_id": container.id}, status=status.HTTP_201_CREATED)
+
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(f"Error starting container: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
