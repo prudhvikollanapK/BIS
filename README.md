@@ -89,24 +89,35 @@
     ```bash
     python manage.py runserver
     ```
-3. **Hit the endpoint to start the Chrome container**
+3.**Execute any one of this this**
+    ```bash
+    docker build -t custom-playwright . 
+    docker build --no-cache -t custom-playwright .
+    ```
+
+4. **Hit the endpoint to start the Chrome container**
     ```bash
     http://localhost:8000/users/3/start-container/
     ```
-4. **List Running Containers**
+5. **List Running Containers**
    ***To verify that the container is running, use the following command***
     ```bash
     docker ps
     ```
     ***This will display a list of all the running containers. You should see your container with the image browserless/chrome along with the port it's mapped to.***
 
-5. **Access the Browser in the Container: Since you are running browserless/chrome, it will expose a port (in your case, likely 3000), which you can access in your browser.**
+6. **Access the Browser in the Container: Since you are running browserless/chrome, it will expose a port (in your case, likely 3000), which you can access in your browser.**
     ```bash
     http://localhost:3000
     ```
   ***This should give you access to the browserless Chrome instance running inside the Docker container. You can control the browser via its API or interface.***
-  ![image](https://github.com/user-attachments/assets/7c2382df-04ce-4dbb-81db-847a307f300b)
+  ![image](https://github.com/user-attachments/assets/32417424-c879-4b39-b497-17a2cec1b3f0)
 
+6. **Searching the normal content**
+   ![image](https://github.com/user-attachments/assets/16ccc013-5e67-4a4c-904b-fb15484d98c4)
+
+7. **Searching the blocked content**
+   ![image](https://github.com/user-attachments/assets/d196335a-c92f-48d0-a2c4-d3450c4226de)
 
 6. **Stopping the Container**
    ```bash
