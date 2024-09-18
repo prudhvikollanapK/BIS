@@ -1,35 +1,73 @@
-const puppeteer = require('puppeteer');
+const http = require('http');
+const playwright = require('playwright');
 
-(async () => {
+const server = http.createServer(async (req, res) => {
     const blockedDomains = process.env.BLOCKED_DOMAINS ? JSON.parse(process.env.BLOCKED_DOMAINS) : [];
-    console.log('Blocked Domains Environment Variable:', process.env.BLOCKED_DOMAINS);  // Log environment variable
-    console.log('Parsed Blocked Domains:', blockedDomains);  // Log parsed domains
+    console.log('Blocked Domains:', blockedDomains);
 
-    const browser = await puppeteer.launch({
-        headless: true,  // Switch to headless mode
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    const browser = await playwright.chromium.launch({
+        headless: true
     });
 
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-    await page.setRequestInterception(true);
-
-    page.on('request', request => {
-        const url = new URL(request.url());
+    await page.route('**/*', (route) => {
+        const url = new URL(route.request().url());
         const hostname = url.hostname;
 
-        console.log(`Request URL: ${request.url()}`);  // Log all URLs being requested
-        console.log(`Hostname: ${hostname}`);  // Log just the hostname for clarity
+        console.log(`Request URL: ${route.request().url()}`);
+        console.log(`Hostname: ${hostname}`);
 
         if (blockedDomains.some(domain => hostname.includes(domain.replace(/https?:\/\//, '').replace(/\//g, '')))) {
             console.log(`Blocking request to: ${hostname}`);
-            request.abort();
+            route.abort();
         } else {
             console.log(`Allowing request to: ${hostname}`);
-            request.continue();
+            route.continue();
         }
     });
 
-    await page.goto('https://www.google.com');
+    if (req.url.startsWith('/search') || req.url === '/') {
+        if (req.url === '/') {
+            await page.goto('https://www.google.com');
+        } else {
+            const searchQuery = decodeURIComponent(req.url.split('?q=')[1]);
+            console.log(`Search Query: ${searchQuery}`);
 
-})();
+            if (blockedDomains.some(domain => searchQuery.includes(domain.replace(/https?:\/\//, '').replace(/\//g, '')))) {
+                res.writeHead(403, { 'Content-Type': 'text/plain' });
+                res.end(`Search for blocked domain "${searchQuery}" is restricted.`);
+                await browser.close();
+                return;
+            }
+
+            await page.goto(`https://www.google.com/search?q=${searchQuery}`);
+
+            await page.evaluate((blockedDomains) => {
+
+                document.querySelectorAll('a').forEach(link => {
+                    const href = link.href;
+
+                    if (blockedDomains.some(domain => href.includes(domain))) {
+                        link.style.display = 'none';
+                    }
+                });
+            }, blockedDomains);
+        }
+
+        const content = await page.content();
+
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(content);
+    } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+    }
+
+    await browser.close();
+});
+
+server.listen(3000, () => {
+    console.log('Server is running on http://localhost:3000');
+});

@@ -1,5 +1,24 @@
 {
+  "name": "bis_project",
+  "version": "1.0.0",
+  "description": "## Setup Instructions",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prudhvikollanapK/BIS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/prudhvikollanapK/BIS/issues"
+  },
+  "homepage": "https://github.com/prudhvikollanapK/BIS#readme",
   "dependencies": {
-    "puppeteer": "^23.3.1"
+    "express": "^4.17.1",
+    "playwright": "^1.47.1"
   }
 }

@@ -5,3 +5,6 @@ db.sqlite3
 media/
 venv/
 /.idea
+node_modules
+db.sqlite3
+package-lock.json
