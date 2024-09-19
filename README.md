@@ -133,6 +133,19 @@
     ```
 
 
+## Setup using automated script
 
-
+1. **Clone the repository**:
+    ```bash
+    git clone https://github.com/prudhvikollanapK/BIS.git
+    cd bis_app
+    ```
+2. **Make the Script Executable**:
+     ```bash
+    chmod +x setup.sh
+    ```
+3. **Run the Script**:
+     ```bash
+    ./setup.sh
+    ```
 
